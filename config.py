@@ -2,9 +2,14 @@ import pygame
 
 gamePlay = True
 
-cell_size = 60
+cell_size = 70
 border_size = 10
 cells_num = 4
+speed = 20
+while (cell_size+border_size)%speed != 0:
+	speed += 1
+	print('uncorrect speed! new speed:', speed)
+win = False
 
 sc_w = cell_size * cells_num + (cells_num+1)*border_size
 sc_h = cell_size * cells_num + (cells_num+1)*border_size + 20
@@ -40,6 +45,8 @@ K_LEFT = 276
 K_UP = 273
 K_DOWN = 274
 K_RIGHT = 275
+KEYS = {K_LEFT: '-x', K_UP: '-y', K_RIGHT: '+x', K_DOWN: '+y'}
+
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)

@@ -12,31 +12,16 @@ def text_speech(font, text, color, xy, bold=0):
 	sc.blit(rendered_text, text_rect)
 
 def game_loop():
-	global gamePlay, tab
+	global gamePlay, tab, win
+	pressed='+x'
 	while 1:
-		# Обработка ивентов(клик, вводить мышкой, нажатие клавиши и т.д)
-
 		for event in pygame.event.get():
-			# Выход
 			if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_F4 and event.mod == 256):
 				pygame.quit(); quit()
 
-			if event.type == pygame.KEYDOWN and gamePlay:
-				if event.key == K_LEFT:
-					tab = tab.move('-x', tab)
-					print('left')
-
-				elif event.key == K_RIGHT:
-					tab = tab.move('+x', tab)
-					print('right')
-
-				elif event.key == K_UP:
-					tab = tab.move('-y', tab)
-					print('up')
-
-				elif event.key == K_DOWN:
-					tab = tab.move('+y', tab)
-					print('down')
+			if event.type == pygame.KEYDOWN and gamePlay and event.key in KEYS and pressed == '':
+				tab = tab.move(KEYS[event.key], tab)
+				pressed = KEYS[event.key]
 
 			if (event.type == pygame.MOUSEBUTTONDOWN and
 				event.button == 1 and
@@ -46,39 +31,72 @@ def game_loop():
 				if not can_moves:
 					tab = Table()
 				gamePlay = True
+				win = False
 
-		# Рисовальня
+
 		can_moves = False
-		win = False
-
-		sc.fill(BG_GAME)
 		for i in range(cells_num):
 			for j in range(cells_num):
 				cell = tab.get(i, j)
-				cell_rect = pygame.Rect(i*cell_size+border_size*(i+1), j*cell_size+border_size*(j+1), cell_size, cell_size)
-				cell_rect = pygame.draw.rect(sc, cell.BG_COLOR, cell_rect)
+				if cell.num != 0:
+					if cell.isCanMove(tab):
+						can_moves = True
+					if cell.num == 2048 and not tab.already_winned:
+						win = True
+						gamePlay = False
+						tab.already_winned = True
 
-				text = font.render(str(cell.num), True, cell.CELL_COLOR)
-				text_rect = text.get_rect(center=(cell_rect.width/2+cell_rect.x, cell_rect.height/2+cell_rect.y))
-				sc.blit(text, text_rect)
+		# Рисовальня
+		if pressed!='':
+			sc.fill(BG_COLOR[0])
+			for i in range(cells_num+1):
+				coord = (cell_size+border_size)*i
+				pygame.draw.rect(sc, BG_GAME, (coord, 0, border_size, sc_w))
+				pygame.draw.rect(sc, BG_GAME, (0, coord, sc_w, border_size))
+				if i == cells_num:
+					pygame.draw.rect(sc, BG_GAME, (0, coord, sc_w, sc_h-coord))
 
-				# Проверка на проигрыш
-				if cell.isCanMove(tab):
-					can_moves = True
-				if cell.num == 2048 and not win:
-					win = True
+			text_speech(font_25, f'Score: {tab.score}', (99, 90, 81), (sc_w//4, sc_h-16))
+			text_speech(font_25, f'record: {tab.record}', (99, 90, 81), (sc_w//2+sc_w//4, sc_h-16))
+			if not can_moves:
+				gamePlay = False
+				text_speech(font_25, 'Игра окончена!', (250, 85, 85), (sc_w//2, sc_h//2-13))
+			if win:
+				text_speech(font_25, 'Вы выйграли!',       (50,120,50), (sc_w//2, sc_h//2-27))
+				text_speech(font_25, 'Можете нажать и продолжить!', (50,120,50), (sc_w//2, sc_h//2-13))
 
-		text_speech(font_25, f'Score: {tab.score}', (99, 90, 81), (sc_w//2, sc_h-16))
-		if not can_moves:
-			gamePlay = False
-			text_speech(font_25, 'Игра окончена!', (250, 85, 85), (sc_w//2, sc_h//2-13))
-		if win:
-			gamePlay = False
-			text_speech(font_25, 'Вы выйграли!',       (50,120,50), (sc_w//2, sc_h//2-27))
-			text_speech(font_25, 'Можете нажать и продолжить!', (50,120,50), (sc_w//2, sc_h//2-13))
 
-		pygame.display.update()
-		clock.tick(70)
+			a = -1 if '+' in pressed else 1
+			for b in range(int((cell_size+border_size)*4/speed)):
+				for i in range(cells_num)[::a]:
+					for j in range(cells_num)[::a]:
+						for g in range(cells_num+1):
+							coord = (cell_size+border_size)*g
+							pygame.draw.rect(sc, BG_GAME, (coord, 0, border_size, sc_w))
+							pygame.draw.rect(sc, BG_GAME, (0, coord, sc_w, border_size))
+							if g == cells_num:
+								pygame.draw.rect(sc, BG_GAME, (0, coord, sc_w, sc_h-coord))
+
+						x, y = (j, i) if 'y' in pressed else (i, j)
+						moving_cell = tab.moves[y][x]
+						
+						pygame.draw.rect(sc, BG_COLOR[0], pygame.Rect(moving_cell[4], moving_cell[5], cell_size, cell_size))
+						
+						x_or_y = 1 if 'y' in pressed else 0
+						if moving_cell[4+x_or_y] != moving_cell[2+x_or_y]:
+							moving_cell[4+x_or_y] += speed if '+' in pressed else -speed
+
+						cell_rect = pygame.Rect(moving_cell[4], moving_cell[5], cell_size, cell_size)
+						cell_rect = pygame.draw.rect(sc, moving_cell[6].BG_COLOR, cell_rect)
+						text_speech(font, str(moving_cell[6].num), moving_cell[6].CELL_COLOR, (cell_rect.width//2+cell_rect.x, cell_rect.height//2+cell_rect.y))
+
+						pygame.display.update()
+						pygame.time.delay(1)
+			tab.moves = [[[i, j, CRP(j), CRP(i), CRP(j), CRP(i), tab.cells[i][j]] for j in range(cells_num)] for i in range(cells_num)]
+
+			pressed = ''
+			pygame.display.update()
+		clock.tick(30)
 
 pygame.init()
 pygame.font.init()
