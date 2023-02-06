@@ -7,7 +7,7 @@ def CRP(pos): # Create Rect Pos
 	return pos*sc.cell_size+(pos+1)*sc.border_size
 
 pygame.font.init()
-font = pygame.font.Font(None, int(sc.cell_size*0.7))
+font = pygame.font.Font(None, int(sc.cell_size*0.8))
 
 def text_speech(sc, text, color, pos):
 	rendered_text = font.render(text, True, color)
