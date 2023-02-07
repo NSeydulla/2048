@@ -1,126 +1,84 @@
-from config import *
-import random
+import pygame
+from config import sc
+from time import time, sleep
+from random import randint as rint
 
 def CRP(pos): # Create Rect Pos
-	return pos*cell_size+border_size*(pos+1)
+	return pos*sc.cell_size+(pos+1)*sc.border_size
 
-class Table(object):
-	def __init__(self):
-		super(Table, self).__init__()
-		self.cells = [[Cell(0, j, i) for j in range(cells_num)] for i in range(cells_num)]
-		self = self.random_put(self)
-		self.score = 0
-		self.already_winned = False
-		self.moves = [[[i, j, CRP(j), CRP(i), CRP(j), CRP(i), self.cells[i][j]] for j in range(cells_num)] for i in range(cells_num)]
-		f = open('record.txt')
-		readed = f.readline()
-		self.record = 0
-		if readed.isdigit():
-			self.record = int(readed)
-		f.close()
+pygame.font.init()
+font = pygame.font.Font(None, int(sc.cell_size*0.8))
 
-	def get(self, x, y):
-		if x in range(cells_num) and y in range(cells_num):
-			return self.cells[y][x]
-		return Out_map
+def text_speech(sc, text, color, pos):
+	rendered_text = font.render(text, True, color)
+	sc.blit(rendered_text, rendered_text.get_rect(center=pos))
 
-	def put(self, x, y, cell):
-		self.cells[y][x] = cell
-	def pop(self, x, y):
-		self.cells[y][x] = Cell(0, x, y)
+class Game():
+	def __init__(self, screen):
+		#animate params
+		self.active = True
+		self.isBusy = False
+		self.startTime = 0
 
-	def random_put(self, tab):
-		if 0 != random.randint(0,3): # 0.25 Шансов что не завспавнится
-			nulls = []
-			for i in tab.cells:
-				for j in i:
-					if j.num == 0:
-						nulls.append(j)
-			if len(nulls) != 0:
-				i = random.randint(0, len(nulls)-1)
-				self.put(nulls[i].x, nulls[i].y, Cell(random.randint(1,2)*2, nulls[i].x, nulls[i].y))
-		return tab
+		#background
+		self.background = pygame.Surface((sc.w, sc.h))
+		self.background.fill(sc.BG_COLOR)
+		for x in range(sc.cells_num):
+			for y in range(sc.cells_num):
+				pygame.draw.rect(self.background, sc.CELL_COLOR[0], (CRP(x), CRP(y), sc.cell_size, sc.cell_size))
 
-	def move(self, orien, tab):
-		a = 1 if '-' in orien else -1
-		for i in range(cells_num)[::a]:
-			for j in range(cells_num)[::a]:
-				cell = self.cells[i][j] if 'y' in orien else self.cells[j][i]
-				tab = cell.move(orien, tab, (cell.x, cell.y))
-		tab = self.random_put(tab)
-		return tab
+		#main params
+		self.sc = screen
+		self.cells = [None for _ in range(sc.cells_num**2)]
+		self.spawn()
+
+	def animate(self):
+		t = time()-self.startTime
+		if t<sc.animate_time: # min or max : (sx + dx*t/at, end_x) #sx-start_x
+			dt = (t/sc.animate_time)
+			for cell in self.cells:
+				cell.animate(dt)
+
+	def draw(self):
+		self.sc.blit(self.background, (0,0))
+		for cell in self.cells:
+			if cell is not None: cell.draw(self.sc)
+		pygame.display.update()
+
+	def onKeyDown(self, key):
+		for cell in self.cells[::-1 if key>=2 else 1]:
+			if cell is not None: cell.move(key)
+		self.spawn()
+
+	def sort(self):
+		self.cells.sort(key=lambda cell: cell.y*sc.cells_num+cell.x)
+
+	def spawn(self):
+		for i in range(2):
+			x, y = rint(0,sc.cells_num-1), rint(0,sc.cells_num-1)
+			if self.cells[y*sc.cells_num+x] is None:
+				cell = Cell(2, x, y)
+				self.cells.append(cell)
+				if rint(0,3)==0:cell.double()
+		self.sort()
 
 class Cell(object):
 	def __init__(self, num, x, y):
-		super(Cell, self).__init__()
+		self.x, self.y = x, y
 		self.num = num
-		if num in BG_COLOR:
-			self.BG_COLOR = BG_COLOR[num]
-			self.CELL_COLOR = CELL_COLOR[num]
-		else:
-			self.BG_COLOR = BLACK
-			self.CELL_COLOR = WHITE
-		self.x = x
-		self.y = y
+		self.update()
+		self.rect = pygame.Rect(CRP(x), CRP(y), sc.cell_size, sc.cell_size)
 
-	def plus(self, tab):
-		self.num *= 2
-		tab.score += self.num
-		if tab.score > tab.record:
-			tab.record = tab.score
-			f = open('record.txt', 'w')
-			f.write(str(tab.record))
-			f.close()
-		if self.num in BG_COLOR:
-			self.BG_COLOR = BG_COLOR[self.num]
-			self.CELL_COLOR = CELL_COLOR[self.num]
-		else:
-			self.BG_COLOR = BLACK
-			self.BG_COLOR = WHITE
-		return tab
+	def update(self):
+		self.CELL_COLOR = sc.CELL_COLOR.get(self.num, (0,0,0))
+		self.TEXT_COLOR = sc.TEXT_COLOR.get(self.num, (255,255,255))
 
-	def move(self, orien, tab, old_pos):
-		orien_x, orien_y = 0, 0
-		if 'x' in orien:  orien_x =   1 if orien == '+x' else -1
-		else:             orien_y =   1 if orien == '+y' else -1
-		cell = tab.get(self.x+orien_x, self.y+orien_y)
-		if cell.num == 0:
-			tab.pop(self.x, self.y)
-			self.x += orien_x
-			self.y += orien_y
-			tab.put(self.x, self.y, self)
-			tab = self.move(orien, tab, old_pos)
-			tab.moves[old_pos[1]][old_pos[0]] = [
-				self.x,
-				self.y,
-				CRP(self.x),
-				CRP(self.y),
-				CRP(old_pos[0]),
-				CRP(old_pos[1]),
-				self] #, tab.moves[old_pos[1]][old_pos[0]][2]
+	def double(self):
+		pass
 
-		elif cell.num == self.num:
-			tab.pop(self.x, self.y)
-			tab = tab.get(cell.x, cell.y).plus(tab)
-			tab.moves[old_pos[1]][old_pos[0]] = [
-				cell.x,
-				cell.y,
-				CRP(cell.x),
-				CRP(cell.y),
-				CRP(old_pos[0]),
-				CRP(old_pos[1]),
-				cell]
+	def move(self, key):
+		pass
 
-		return tab
-
-	def isCanMove(self, tab):
-		a = [0, self.num]
-		up    = tab.get(self.x, self.y-1).num in a
-		down  = tab.get(self.x, self.y+1).num in a
-		left  = tab.get(self.x-1, self.y).num in a
-		right = tab.get(self.x+1, self.y).num in a
-
-		if up or down or left or right: return True
-		return False
-
-Out_map = Cell(3, 'wr', 'wr')
+	def draw(self, screen):
+		pygame.draw.rect(screen, self.CELL_COLOR, self.rect)
+		text_speech(screen, str(self.num), self.TEXT_COLOR, self.rect.center)
